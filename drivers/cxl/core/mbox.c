@@ -1102,9 +1102,11 @@ static int cxl_send_dc_cap_response(struct cxl_memdev_state *mds,
 		dc_res->extent_list[0].dpa_start = cpu_to_le64(extent->start);
 		memset(dc_res->extent_list[0].reserved, 0, 8);
 		dc_res->extent_list[0].length = cpu_to_le64(range_len(extent));
-	}
+        dc_res->extent_list_size = cpu_to_le32(1);
+	} else {
+        dc_res->extent_list_size = cpu_to_le32(0);
+    }
 
-	dc_res->extent_list_size = cpu_to_le32(1);
 	mbox_cmd = (struct cxl_mbox_cmd) {
 		.opcode = opcode,
 		.size_in = size,
