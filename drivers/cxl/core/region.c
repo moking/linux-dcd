@@ -480,7 +480,7 @@ static ssize_t interleave_ways_store(struct device *dev,
 	if (rc)
 		return rc;
 
-	if (cxlr->mode == CXL_PARTMODE_DYNAMIC_RAM_A && val != 1) {
+	if (is_cxl_dc_partition_mode(cxlr->mode) && val != 1) {
 		dev_err(dev, "Interleaving and DCD not supported\n");
 		return -EINVAL;
 	}
@@ -2216,7 +2216,7 @@ static size_t store_targetN(struct cxl_region *cxlr, const char *buf, int pos,
 		}
 
 		cxled = to_cxl_endpoint_decoder(dev);
-		if (cxlr->mode == CXL_PARTMODE_DYNAMIC_RAM_A &&
+		if (is_cxl_dc_partition_mode(cxlr->mode) &&
 		    !cxl_dcd_supported(cxled_to_mds(cxled))) {
 			dev_dbg(dev, "DCD unsupported\n");
 			rc = -EINVAL;
@@ -2567,7 +2567,7 @@ static struct cxl_region *__create_region(struct cxl_root_decoder *cxlrd,
 	switch (mode) {
 	case CXL_PARTMODE_RAM:
 	case CXL_PARTMODE_PMEM:
-	case CXL_PARTMODE_DYNAMIC_RAM_A:
+	case CXL_PARTMODE_DYNAMIC_RAM_0...CXL_PARTMODE_DYNAMIC_RAM_7:
 		break;
 	default:
 		dev_err(&cxlrd->cxlsd.cxld.dev, "unsupported mode %d\n", mode);
@@ -2620,20 +2620,36 @@ static ssize_t create_ram_region_store(struct device *dev,
 }
 DEVICE_ATTR_RW(create_ram_region);
 
-static ssize_t create_dynamic_ram_a_region_show(struct device *dev,
-						struct device_attribute *attr,
-						char *buf)
-{
-	return __create_region_show(to_cxl_root_decoder(dev), buf);
+#define CREATE_DYNAMIC_RAM_N_REGION(n)						\
+static ssize_t create_dynamic_ram_##n##_region_show(struct device *dev,		\
+						struct device_attribute *attr,	\
+						char *buf)			\
+{										\
+	return __create_region_show(to_cxl_root_decoder(dev), buf);		\
+}										\
+static ssize_t create_dynamic_ram_##n##_region_store(struct device *dev,		\
+						 struct device_attribute *attr, \
+						 const char *buf, size_t len)	\
+{										\
+	enum cxl_partition_mode mode = CXL_PARTITION_DC_MODE(0) + (n);		\
+	return create_region_store(dev, buf, len, mode);			\
 }
-
-static ssize_t create_dynamic_ram_a_region_store(struct device *dev,
-						 struct device_attribute *attr,
-						 const char *buf, size_t len)
-{
-	return create_region_store(dev, buf, len, CXL_PARTMODE_DYNAMIC_RAM_A);
-}
-DEVICE_ATTR_RW(create_dynamic_ram_a_region);
+CREATE_DYNAMIC_RAM_N_REGION(0);
+CREATE_DYNAMIC_RAM_N_REGION(1);
+CREATE_DYNAMIC_RAM_N_REGION(2);
+CREATE_DYNAMIC_RAM_N_REGION(3);
+CREATE_DYNAMIC_RAM_N_REGION(4);
+CREATE_DYNAMIC_RAM_N_REGION(5);
+CREATE_DYNAMIC_RAM_N_REGION(6);
+CREATE_DYNAMIC_RAM_N_REGION(7);
+DEVICE_ATTR_RW(create_dynamic_ram_0_region);
+DEVICE_ATTR_RW(create_dynamic_ram_1_region);
+DEVICE_ATTR_RW(create_dynamic_ram_2_region);
+DEVICE_ATTR_RW(create_dynamic_ram_3_region);
+DEVICE_ATTR_RW(create_dynamic_ram_4_region);
+DEVICE_ATTR_RW(create_dynamic_ram_5_region);
+DEVICE_ATTR_RW(create_dynamic_ram_6_region);
+DEVICE_ATTR_RW(create_dynamic_ram_7_region);
 
 static ssize_t region_show(struct device *dev, struct device_attribute *attr,
 			   char *buf)
@@ -3231,7 +3247,7 @@ static int devm_cxl_add_dax_region(struct cxl_region *cxlr)
 	struct device *dev;
 	int rc;
 
-	if (cxlr->mode == CXL_PARTMODE_DYNAMIC_RAM_A &&
+	if (is_cxl_dc_partition_mode(cxlr->mode) &&
 	    cxlr->params.interleave_ways != 1) {
 		dev_err(&cxlr->dev, "Interleaving DC not supported\n");
 		return -EINVAL;
@@ -3603,7 +3619,7 @@ out:
 	case CXL_PARTMODE_PMEM:
 		return devm_cxl_add_pmem_region(cxlr);
 	case CXL_PARTMODE_RAM:
-	case CXL_PARTMODE_DYNAMIC_RAM_A:
+	case CXL_PARTMODE_DYNAMIC_RAM_0...CXL_PARTMODE_DYNAMIC_RAM_7:
 		/*
 		 * The region can not be manged by CXL if any portion of
 		 * it is already online as 'System RAM'
